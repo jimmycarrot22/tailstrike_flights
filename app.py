@@ -17,7 +17,8 @@ AIRPORTS_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_fligh
 df = load_csv(DF_URL)
 airports = load_csv(AIRPORTS_URL)
 
-st.write(df.columns.tolist())
+# Convert date column from string to datetime
+df["date_dep_form"] = pd.to_datetime(df["date_dep_form"], errors="coerce")
 
 st.set_page_config(layout="wide")
 
@@ -292,5 +293,6 @@ with colA:
 
 with colB:
     st.color_picker("Airport Dot Color", dot_color_hex, key="dot_color_hex")
+
 
 
