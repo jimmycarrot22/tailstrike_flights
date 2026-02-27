@@ -10,7 +10,7 @@ import altair as alt
 def load_csv(url):
     return pd.read_csv(url)
 
-DF_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_flights/main/data/df.csv"
+DF_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_flights/main/data/tailstrike_flights.csv"
 AIRPORTS_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_flights/main/data/airports.csv"
 
 # Load dataframes
@@ -21,7 +21,6 @@ st.set_page_config(layout="wide")
 
 # header
 st.markdown("<h2 style='font-size:24px; font-weight:700; margin-bottom:10px;'>Tailstrike Flights </h2>", unsafe_allow_html=True)
-
 
 def get_coords(code):
     row = airports[airports["icao_code"] == code]
@@ -291,3 +290,4 @@ with colA:
 
 with colB:
     st.color_picker("Airport Dot Color", dot_color_hex, key="dot_color_hex")
+
