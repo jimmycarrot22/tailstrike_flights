@@ -18,6 +18,7 @@ def load_csv(url):
     return pd.read_csv(url)
 
 DF_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_flights/main/data/tailstrike_flights.csv"
+df = load_csv(DF_URL)
 
 df["date_dep_form"] = pd.to_datetime(df["date_dep_form"], errors="coerce")
 df["date_arr_form"] = pd.to_datetime(df["date_arr_form"], errors="coerce")
@@ -539,4 +540,5 @@ with tab2:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
