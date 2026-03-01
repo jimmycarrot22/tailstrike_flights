@@ -1,5 +1,8 @@
 streamlit
 pandas
+numpy
 pydeck
-altair
 matplotlib
+altair
+shapely
+pyproj
