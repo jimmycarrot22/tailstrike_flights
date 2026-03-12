@@ -34,7 +34,7 @@ st.set_page_config(layout="wide")
 
 # Optional: custom header
 st.markdown("<h2 style='font-size:24px; font-weight:700; margin-bottom:10px;'>Tailstrike Flights </h2>", unsafe_allow_html=True)
-tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Tables"])
+tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Achievements"])
 # =============================================================
 #                      FILTERING SECTION
 # =============================================================
@@ -689,22 +689,26 @@ with tab3:
         return trail_result_frame
     
     
-    def top10_trailblazers(trail_result_frame):
-        # Select useful columns
-        trail_filtered = trail_result_frame[[
-            "route", "trailblazer", "followers_count"
-        ]].copy()
+    def display_trailblazer(flights_frame):
+        trail_frame = compute_trailblazers(flights_frame)
+        
+        # Sum followers per pilot and get top 1
+        pilot_scores = (
+            trail_frame.groupby("trailblazer")["followers_count"]
+            .sum()
+            .sort_values(ascending=False)
+            .reset_index()
+        )
+        top = pilot_scores.iloc[0]
     
-        # Remove NaN rows
-        trail_filtered = trail_filtered.dropna(subset=["followers_count"])
+        tooltip = "🧭 Trailblazer: the pilot who has pioneered the most routes flown by others — first to fly a route that was later followed by other pilots."
     
-        # Sort by followers DESC
-        trail_sorted = trail_filtered.sort_values("followers_count", ascending=False)
-    
-        # Top 10 only
-        trail_top10 = trail_sorted.head(10)
-    
-        return trail_top10.reset_index(drop=True)
+        st.metric(
+            label="🧭 Trailblazer",
+            value=top["trailblazer"],
+            delta=f"{int(top['followers_count'])} routes pioneered",
+            help=tooltip
+        )
   
     def compute_airline_network_size(flights_frame):
         # Use only the columns you actually have
@@ -758,6 +762,7 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
 
 
