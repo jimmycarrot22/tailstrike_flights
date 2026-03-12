@@ -511,15 +511,17 @@ with tab2:
     
     st.altair_chart(gs_chart, use_container_width=True)
     
-with tab3:
 
+with tab3:
     # Earth model (WGS84)
     geod = Geod(ellps="WGS84")
-    EARTH_AREA = 4 * np.pi * (6378137**2)  # in m²
+    EARTH_AREA = 4 * np.pi * (6378137 ** 2)  # in m²
+
 
     def normalize(lon):
         """Convert longitude to 0–360."""
         return (lon + 360) % 360
+
 
     def flight_box(lat1, lon1, lat2, lon2):
         """Return valid polygons for the bounding box of a flight."""
@@ -602,6 +604,7 @@ with tab3:
 
         return total
 
+
     # ==========================================================
     # 1) TOTAL GLOBE COVERAGE FOR ENTIRE DATASET
     # ==========================================================
@@ -637,12 +640,13 @@ with tab3:
 
         return pd.DataFrame(rows)
 
+
     pct, area = compute_total_coverage(poly_df)
     print("Total globe coverage:", pct * 100, "%")
 
     pilot_cov = compute_per_pilot_coverage(poly_df)
     print(pilot_cov)
-    
+
 
     def top10_pilot_coverage(pilot_cov):
         pilot_cov_filtered = pilot_cov[["pilot", "coverage_pct"]].copy()
@@ -650,117 +654,120 @@ with tab3:
         pilot_cov_sorted = pilot_cov_filtered.sort_values("coverage_pct", ascending=False)
         pilot_cov_top10 = pilot_cov_sorted.head(10).reset_index(drop=True)
         pilot_cov_top10["coverage_pct"] = pilot_cov_top10["coverage_pct"].apply(lambda x: f"{x * 100:.1f}%")
-    
+
         return pilot_cov_top10
-    
+
+
     def compute_trailblazers(flights_frame):
         # Create a canonical route key ON THE INPUT DATAFRAME
         flights_frame = flights_frame.copy()
         flights_frame["route"] = flights_frame["departure"].astype(str) + "-" + flights_frame["arrival"].astype(str)
-    
+
         # Sort by earliest time
         flights_sorted = flights_frame.sort_values("date_dep_form")
-    
+
         trail_results = []
-    
+
         # Group by route
         for route, group in flights_sorted.groupby("route"):
-    
             # Earliest row in this group
             first_row = group.iloc[0]
             trailblazer = first_row["pilot"]
             first_time = first_row["date_dep_form"]
-    
+
             # Other pilots who flew the same route later
             other_pilots = group.loc[group["pilot"] != trailblazer, "pilot"].unique()
             other_pilot_count = len(other_pilots)
-    
+
             trail_results.append({
                 "route": route,
                 "trailblazer": trailblazer,
                 "first_flight_time": first_time,
                 "followers_count": other_pilot_count,
             })
-    
+
         # Keep only routes with followers
         trail_result_frame = pd.DataFrame(trail_results)
         trail_result_frame = trail_result_frame[trail_result_frame["followers_count"] > 0]
-    
+
         return trail_result_frame
-    
-    
-    def display_trailblazer(flights_frame):
-        trail_frame = compute_trailblazers(flights_frame)
-        
-        # Sum followers per pilot and get top 1
-        pilot_scores = (
-            trail_frame.groupby("trailblazer")["followers_count"]
-            .sum()
-            .sort_values(ascending=False)
-            .reset_index()
-        )
-        top = pilot_scores.iloc[0]
-    
-        tooltip = "🧭 Trailblazer: the pilot who has pioneered the most routes flown by others — first to fly a route that was later followed by other pilots."
-    
-        st.metric(
-            label="🧭 Trailblazer",
-            value=top["trailblazer"],
-            delta=f"{int(top['followers_count'])} routes pioneered",
-            help=tooltip
-        )
-  
+
+
+    def top10_trailblazers(trail_result_frame):
+        # Select useful columns
+        trail_filtered = trail_result_frame[[
+            "route", "trailblazer", "followers_count"
+        ]].copy()
+
+        # Remove NaN rows
+        trail_filtered = trail_filtered.dropna(subset=["followers_count"])
+
+        # Sort by followers DESC
+        trail_sorted = trail_filtered.sort_values("followers_count", ascending=False)
+
+        # Top 10 only
+        trail_top10 = trail_sorted.head(10)
+
+        return trail_top10.reset_index(drop=True)
+
+
     def compute_airline_network_size(flights_frame):
         # Use only the columns you actually have
         airline_tmp = flights_frame[["ac_airline_name", "departure", "arrival"]].copy()
-    
+
         # Drop rows with missing airline
         airline_tmp = airline_tmp.dropna(subset=["ac_airline_name"])
-    
+
         # Stack departure + arrival into a single "airport" column
-        melted = airline_tmp.melt(id_vars="ac_airline_name", value_vars=["departure", "arrival"], value_name="airport" )
-    
+        melted = airline_tmp.melt(id_vars="ac_airline_name", value_vars=["departure", "arrival"], value_name="airport")
+
         # Drop missing airports
         melted = melted.dropna(subset=["airport"])
-    
+
         # Count unique airports per airline
-        network_size = (melted.groupby("ac_airline_name")["airport"].nunique().reset_index(name="network_airport_count").sort_values("network_airport_count", ascending=False))
-    
-        return network_size    
-    
+        network_size = (melted.groupby("ac_airline_name")["airport"].nunique().reset_index(
+            name="network_airport_count").sort_values("network_airport_count", ascending=False))
+
+        return network_size
+
+
     def top10_airline_network_size(network_frame):
-        airline_filtered = network_frame[["ac_airline_name","network_airport_count"]].copy()
-    
+        airline_filtered = network_frame[["ac_airline_name", "network_airport_count"]].copy()
+
         airline_filtered = airline_filtered.dropna(subset=["network_airport_count"])
-        airline_sorted = airline_filtered.sort_values("network_airport_count", ascending=False )
-    
+        airline_sorted = airline_filtered.sort_values("network_airport_count", ascending=False)
+
         airline_top10 = airline_sorted.head(10)
-        return airline_top10.reset_index(drop=True)    
-    
-    # ===============================================================
+        return airline_top10.reset_index(drop=True)
+
+        # ===============================================================
+
+
     # DISPLAY BLOCK
     # ===============================================================
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
+
+    col1, col2, col3 = st.columns(3)
+
     pilot_coverage_top10 = top10_pilot_coverage(pilot_cov)
+
     with col3:
         st.markdown("### Top 10 Pilots Globe Coverage")
         st.dataframe(pilot_coverage_top10, use_container_width=True, height=387, hide_index=True)
-    
+
     trailblazer_table = compute_trailblazers(filtered_df)
+    trailblazer_top10 = top10_trailblazers(trailblazer_table)
+
     with col2:
-        display_trailblazer(filtered_df)
-    
+        st.markdown("### Top 10 Trailblazers")
+        st.dataframe(trailblazer_top10, use_container_width=True, height=387, hide_index=True)
+
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
+
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
-    
-    with col4:
-        pass  # placeholder for your 4th metric
-    
+
 
 
 
