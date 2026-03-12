@@ -510,7 +510,7 @@ with tab2:
     )
     
     st.altair_chart(gs_chart, use_container_width=True)
-    
+
 
 with tab3:
     # Earth model (WGS84)
@@ -767,11 +767,3 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
-
-
-
-
-
-
-
-
