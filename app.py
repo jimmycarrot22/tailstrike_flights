@@ -741,29 +741,26 @@ with tab3:
     # DISPLAY BLOCK
     # ===============================================================
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     pilot_coverage_top10 = top10_pilot_coverage(pilot_cov)
-    
     with col3:
         st.markdown("### Top 10 Pilots Globe Coverage")
-        st.dataframe(pilot_coverage_top10, use_container_width=True, height=387, hide_index=True        )
+        st.dataframe(pilot_coverage_top10, use_container_width=True, height=387, hide_index=True)
     
     trailblazer_table = compute_trailblazers(filtered_df)
-    #trailblazer_top10 = top10_trailblazers(trailblazer_table)
+    with col2:
+        display_trailblazer(trailblazer_table)
     
-  #  with col2:
-   #     st.markdown("### Top 10 Trailblazers")
-    #    st.dataframe(trailblazer_top10, use_container_width=True, height=387, hide_index=True)
-
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
-    
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
-
-
+    
+    with col4:
+        pass  # placeholder for your 4th metric
+    
 
 
 
