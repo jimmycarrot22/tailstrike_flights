@@ -461,7 +461,7 @@ with tab2:
             summary_value = format_duration(raw, is_total=False)
         else:
             summary_value = f"{round(gs_df['distance_nm'].mean(), 1)} nm"
-        summary_label = f"Overall {gs_stat}"
+        summary_label = f"{gs_stat}"
     else:
         if agg_type == "nunique":
             summary_value = int(gs_df["pilot"].nunique())
@@ -758,5 +758,6 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
 
