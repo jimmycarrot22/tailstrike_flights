@@ -750,7 +750,7 @@ with tab3:
         st.dataframe(pilot_coverage_top10, use_container_width=True, height=387, hide_index=True        )
     
     trailblazer_table = compute_trailblazers(filtered_df)
-    trailblazer_top10 = top10_trailblazers(trailblazer_table)
+    #trailblazer_top10 = top10_trailblazers(trailblazer_table)
     
     with col2:
         st.markdown("### Top 10 Trailblazers")
@@ -762,6 +762,7 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
 
 
