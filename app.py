@@ -304,15 +304,15 @@ with tab2:
     
     # --- Stat metric selector ---
     STAT_OPTIONS = {
-        "Pilots":                 ("nunique",       "Pilots",   "#7896E1"),
-        "Flights":                ("count_flights", "Flights",  "#7896E1"),
-        "Aircraft":               ("nunique_ac",    "Aircraft", "#7896E1"),
+        "Pilots":                 ("nunique",       "Pilot Count",   "#7896E1"),
+        "Flights":                ("count_flights", "Flight Count",  "#7896E1"),
+        "Aircraft":               ("nunique_ac",    "Aircraft Count", "#7896E1"),
         "Total Flight Duration":  ("sum_dur",       "Minutes",  "#7896E1"),
         "Total Flight Distance":  ("sum_dist",      "NM",       "#7896E1"),
         "Avg Flight Duration":    ("mean_dur",      "Minutes",  "#7896E1"),
         "Avg Flight Distance":    ("mean_dist",     "NM",       "#7896E1"),
-        "Longest Flight (Distance)": ("max_dist",   "NM",       "#7896E1"),
         "Longest Flight (Duration)": ("max_dur",    "Minutes",  "#7896E1"),
+        "Longest Flight (Distance)": ("max_dist",   "NM",       "#7896E1"),
         "Cumulative Pilots":      ("cumsum_pilots", "Pilots",   "#7896E1"),
         "Cumulative Flights":     ("cumsum_flights", "Flights", "#7896E1"),
         "Cumulative Aircraft":    ("cumsum_ac", "Aircraft",     "#78A0E1"),
@@ -758,6 +758,7 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
 
 
