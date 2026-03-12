@@ -750,7 +750,7 @@ with tab3:
     
     trailblazer_table = compute_trailblazers(filtered_df)
     with col2:
-        display_trailblazer(trailblazer_table)
+        display_trailblazer(filtered_df)
     
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
@@ -761,6 +761,7 @@ with tab3:
     with col4:
         pass  # placeholder for your 4th metric
     
+
 
 
 
