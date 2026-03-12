@@ -490,7 +490,7 @@ with tab2:
             summary_value = int(gs_df["aircraft"].nunique())
         else:
             summary_value = int(daily_gs[y_label].sum())
-        summary_label = f"Total — {gs_stat}"
+        summary_label = f"{gs_stat}"
     
     st.metric(label=summary_label, value=summary_value)
 
@@ -758,4 +758,5 @@ with tab3:
     with col1:
         st.markdown("### Top 10 Airline Network Size")
         st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+
 
