@@ -34,7 +34,7 @@ st.set_page_config(layout="wide")
 
 # Optional: custom header
 st.markdown("<h2 style='font-size:24px; font-weight:700; margin-bottom:10px;'>Tailstrike Flights </h2>", unsafe_allow_html=True)
-tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Tables"])
+tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Achievements"])
 # =============================================================
 #                      FILTERING SECTION
 # =============================================================
