@@ -508,7 +508,7 @@ with tab2:
     )
     
     st.altair_chart(gs_chart, use_container_width=True)
-    
+
 with tab3:
 
     def longest_snake(df):
@@ -752,6 +752,16 @@ with tab3:
         st.markdown("### Busy Skies", help="All movements in 24h period")
         st.dataframe(busiest_df, use_container_width=True, hide_index=True)
     
+    def top5_aircraft_unique_pilots(df):
+        result = (
+            df.groupby('aircraft')['pilot']
+            .nunique()
+            .sort_values(ascending=False)
+            .head(5)
+            .reset_index()
+        )
+        result.columns = ['aircraft', 'unique_pilots']
+        return result
     
     def top10_company_man(df):
         result = (
@@ -812,3 +822,6 @@ with tab3:
     with row2_col4:
         pass  # TBD
     
+
+    
+
