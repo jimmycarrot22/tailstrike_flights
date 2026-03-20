@@ -25,7 +25,7 @@ df["date_arr_form"] = pd.to_datetime(df["date_arr_form"], errors="coerce")
 
 poly_df = df.copy()
 trail_df = df.copy()
-    
+
 
 # =============================================================
 #                        PAGE LAYOUT
@@ -299,9 +299,7 @@ with tab2:
     # =============================================================
     #                    GLOBAL STATS TAB
     # =============================================================
-    
-
-    
+     
     # --- Stat metric selector ---
     STAT_OPTIONS = {
         "Pilots":                 ("nunique",       "Pilots",   "#7896E1"),
@@ -490,7 +488,7 @@ with tab2:
             summary_value = int(gs_df["aircraft"].nunique())
         else:
             summary_value = int(daily_gs[y_label].sum())
-        summary_label = f"{gs_stat}"
+        summary_label = f"Total — {gs_stat}"
     
     st.metric(label=summary_label, value=summary_value)
 
@@ -510,7 +508,6 @@ with tab2:
     )
     
     st.altair_chart(gs_chart, use_container_width=True)
-    
     
 with tab3:
 
@@ -825,6 +822,3 @@ with tab3:
     with row2_col4:
         pass  # TBD
     
-
-    
-
