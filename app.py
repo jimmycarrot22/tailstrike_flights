@@ -511,147 +511,120 @@ with tab2:
     
     st.altair_chart(gs_chart, use_container_width=True)
     
+    
 with tab3:
 
-    # Earth model (WGS84)
-    geod = Geod(ellps="WGS84")
-    EARTH_AREA = 4 * np.pi * (6378137**2)  # in m²
+    def longest_snake(df):
+        results = {}
+    
+        for aircraft, group in df.groupby('aircraft'):
+            flights = group.sort_values('date_dep_form').reset_index(drop=True)
+            best_chain = []
+    
+            def dfs(chain, visited_airports, used_indices):
+                nonlocal best_chain
+    
+                if len(chain) > len(best_chain):
+                    best_chain = chain.copy()
+    
+                last = chain[-1]
+    
+                next_legs = flights[
+                    (flights['departure'] == last['arrival']) &
+                    (flights['date_dep_form'] > last['date_dep_form']) &
+                    (~flights.index.isin(used_indices))
+                ].sort_values('date_dep_form')
+    
+                if len(next_legs) == 0:
+                    return
+    
+                earliest = next_legs.iloc[0]
+    
+                if earliest['pilot'] == last['pilot']:
+                    return
+    
+                if earliest['arrival'] in visited_airports:
+                    return
+    
+                same_time_legs = next_legs[next_legs['date_dep_form'] == earliest['date_dep_form']]
+    
+                for idx, candidate in same_time_legs.iterrows():
+                    if candidate['pilot'] == last['pilot']:
+                        continue
+                    if candidate['arrival'] in visited_airports:
+                        continue
+    
+                    dfs(
+                        chain + [candidate],
+                        visited_airports | {candidate['arrival']},
+                        used_indices | {idx}
+                    )
+    
+            for start_idx, start in flights.iterrows():
+                visited = {start['departure'], start['arrival']}
+                dfs([start], visited, {start_idx})
+    
+            results[aircraft] = {
+                'length': len(best_chain),
+                'chain': [
+                    {
+                        'departure': r['departure'],
+                        'arrival': r['arrival'],
+                        'pilot': r['pilot'],
+                        'date': r['date_dep_form']
+                    }
+                    for r in best_chain
+                ]
+            }
+    
+        return results
 
-    def normalize(lon):
-        """Convert longitude to 0–360."""
-        return (lon + 360) % 360
-
-    def flight_box(lat1, lon1, lat2, lon2):
-        """Return valid polygons for the bounding box of a flight."""
-
-        # ---- SANITIZE INPUT ----
-        # Skip impossible coordinates
-        if not (-90 <= lat1 <= 90 and -90 <= lat2 <= 90):
-            return []
-        if not (-180 <= lon1 <= 180 and -180 <= lon2 <= 180):
-            return []
-
-        lat_min, lat_max = sorted([lat1, lat2])
-        lon1n, lon2n = normalize(lon1), normalize(lon2)
-
-        # Skip degenerate boxes (flight is a point or purely vertical/horizontal)
-        if lat_min == lat_max or lon1n == lon2n:
-            return []
-
-        polys = []
-
-        # ---- CASE 1: NO WRAP ----
-        if abs(lon1n - lon2n) <= 180:
-            lon_min, lon_max = sorted([lon1n, lon2n])
-            p = Polygon([
-                (lon_min, lat_min),
-                (lon_max, lat_min),
-                (lon_max, lat_max),
-                (lon_min, lat_max)])
-            if p.is_valid:
-                polys.append(p)
-            return polys
-
-        # ---- CASE 2: WRAP AROUND 180° ----
-        if lon1n < lon2n:
-            intervals = [(0, lon1n), (lon2n, 360)]
-        else:
-            intervals = [(0, lon2n), (lon1n, 360)]
-
-        for start, end in intervals:
-            if start == end:
-                continue
-            p = Polygon([
-                (start, lat_min),
-                (end, lat_min),
-                (end, lat_max),
-                (start, lat_max)])
-            if p.is_valid:
-                polys.append(p)
-
-        return polys
-
-
-    def area_of_polygon(poly):
-        """Compute spherical area of a Polygon using WGS84."""
-        lon, lat = poly.exterior.xy
-        area, _ = geod.polygon_area_perimeter(lon, lat)
-        return abs(area)
-
-
-    def compute_union_area(polygons):
-        valid = [p for p in polygons if p.is_valid and not p.is_empty]
-
-        if not valid:
-            return 0
-
-        merged = unary_union(valid)
-
-        # Normalize into a list of polygons using .geoms (safe for Polygon & MultiPolygon)
-        if hasattr(merged, "geoms"):
-            merged_list = list(merged.geoms)
-        else:
-            merged_list = [merged]
-
-        total = 0
-        for poly in merged_list:
-            if poly.is_valid and not poly.is_empty:
-                lon, lat = poly.exterior.xy
-                area, _ = geod.polygon_area_perimeter(lon, lat)
-                total += abs(area)
-
-        return total
-
-    # ==========================================================
-    # 1) TOTAL GLOBE COVERAGE FOR ENTIRE DATASET
-    # ==========================================================
-    def compute_total_coverage(poly_df):
-        polygons = []
-
-        for _, r in poly_df.iterrows():
-            polys = flight_box(r["dep_lat"], r["dep_lon"], r["arr_lat"], r["arr_lon"])
-            polygons.extend(polys)
-
-        total_area = compute_union_area(polygons)
-        pct = total_area / EARTH_AREA
-        return pct, total_area
-
-
-    # ==========================================================
-    # 2) PER PILOT GLOBE COVERAGE
-    # ==========================================================
-    def compute_per_pilot_coverage(poly_df):
-        rows = []
-
-        for pilot, g in poly_df.groupby("pilot"):
-            polygons = []
-
-            for _, r in g.iterrows():
-                polys = flight_box(r["dep_lat"], r["dep_lon"], r["arr_lat"], r["arr_lon"])
-                polygons.extend(polys)
-
-            area = compute_union_area(polygons)
-            pct = area / EARTH_AREA
-
-            rows.append({"pilot": pilot, "area_m2": area, "coverage_pct": pct})
-
-        return pd.DataFrame(rows)
-
-    pct, area = compute_total_coverage(poly_df)
-    print("Total globe coverage:", pct * 100, "%")
-
-    pilot_cov = compute_per_pilot_coverage(poly_df)
-    print(pilot_cov)
+    def display_top_snake(df):
+        results = longest_snake(df)
+    
+        top = sorted(results.items(), key=lambda x: x[1]['length'], reverse=True)[0]
+        aircraft, data = top
+        chain = data['chain']
+    
+        route = " → ".join([chain[0]['departure']] + [l['arrival'] for l in chain])
+        pilots = ", ".join(dict.fromkeys(l['pilot'] for l in chain))
+        first_date = chain[0]['date'].strftime("%Y-%m-%d") if hasattr(chain[0]['date'], 'strftime') else str(chain[0]['date'])
+    
+        summary_df = pd.DataFrame([{
+            'aircraft': aircraft,
+            'legs': data['length'],
+            'started': first_date,
+            'pilots': pilots
+        }])
+    
+        route_df = pd.DataFrame([{'route': route}])
+    
+        st.markdown("### The Snake", help="Most flights by non-consecutive pilots, without flying to previosly used airport")
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        st.dataframe(route_df, use_container_width=True, hide_index=True)
+        
     
 
-    def top10_pilot_coverage(pilot_cov):
-        pilot_cov_filtered = pilot_cov[["pilot", "coverage_pct"]].copy()
-        pilot_cov_filtered = pilot_cov_filtered.dropna(subset=["coverage_pct"])
-        pilot_cov_sorted = pilot_cov_filtered.sort_values("coverage_pct", ascending=False)
-        pilot_cov_top10 = pilot_cov_sorted.head(10).reset_index(drop=True)
-        pilot_cov_top10["coverage_pct"] = pilot_cov_top10["coverage_pct"].apply(lambda x: f"{x * 100:.1f}%")
+    def single_aircraft_pilot_hours(df):
+        pilot_aircraft = df.groupby('pilot')['aircraft'].nunique()
+        single_aircraft_pilots = pilot_aircraft[pilot_aircraft == 1].index
     
-        return pilot_cov_top10
+        filtered = df[df['pilot'].isin(single_aircraft_pilots)]
+        result = filtered.groupby('pilot').agg(
+            aircraft=('aircraft', 'first'),
+            total_minutes=('duration_min', 'sum'),
+            flights=('duration_min', 'count')
+        ).reset_index()
+    
+        result['total_hours'] = result['total_minutes'].apply(
+            lambda m: f"{int(m // 60):02d}:{int(m % 60):02d}"
+        )
+    
+        result = result.drop(columns='total_minutes')
+        result = result.sort_values('flights', ascending=False).head(5)
+    
+        return result.reset_index(drop=True)
+
     
     def compute_trailblazers(flights_frame):
         # Create a canonical route key ON THE INPUT DATAFRAME
@@ -702,7 +675,7 @@ with tab3:
         trail_sorted = trail_filtered.sort_values("followers_count", ascending=False)
     
         # Top 10 only
-        trail_top10 = trail_sorted.head(10)
+        trail_top10 = trail_sorted.head(5)
     
         return trail_top10.reset_index(drop=True)
   
@@ -730,32 +703,128 @@ with tab3:
         airline_filtered = airline_filtered.dropna(subset=["network_airport_count"])
         airline_sorted = airline_filtered.sort_values("network_airport_count", ascending=False )
     
-        airline_top10 = airline_sorted.head(10)
+        airline_top10 = airline_sorted.head(5)
         return airline_top10.reset_index(drop=True)    
+        
+    def busiest_airport(df):
+        df['date_dep_form'] = pd.to_datetime(df['date_dep_form'])
+    
+        departures = df[['departure', 'date_dep_form']].rename(
+            columns={'departure': 'airport', 'date_dep_form': 'time'}
+        )
+        arrivals = df[['arrival', 'date_dep_form']].rename(
+            columns={'arrival': 'airport', 'date_dep_form': 'time'}
+        )
+    
+        movements = pd.concat([departures, arrivals]).sort_values('time').reset_index(drop=True)
+    
+        results = []
+    
+        for _, row in movements.iterrows():
+            window_start = row['time']
+            window_end = window_start + pd.Timedelta(hours=24)
+            airport = row['airport']
+    
+            count = len(movements[
+                (movements['airport'] == airport) &
+                (movements['time'] >= window_start) &
+                (movements['time'] < window_end)
+            ])
+    
+            results.append({
+                'airport': airport,
+                'count': count,
+                'window_start': window_start,
+                'window_end': window_end
+            })
+    
+        top5 = sorted(results, key=lambda x: x['count'], reverse=True)[:5]
+        return top5
+    
+        
+    def display_busiest_airport(df):
+        top5 = busiest_airport(df)
+    
+        busiest_df = pd.DataFrame([{
+            'airport': r['airport'],
+            'movements': r['count'],
+            'window_start': pd.Timestamp(r['window_start']).strftime("%Y-%m-%d %H:%M"),
+            'window_end': pd.Timestamp(r['window_end']).strftime("%Y-%m-%d %H:%M")
+        } for r in top5])
+    
+        st.markdown("### Busy Skies", help="All movements in 24h period")
+        st.dataframe(busiest_df, use_container_width=True, hide_index=True)
+    
+    def top5_aircraft_unique_pilots(df):
+        result = (
+            df.groupby('aircraft')['pilot']
+            .nunique()
+            .sort_values(ascending=False)
+            .head(5)
+            .reset_index()
+        )
+        result.columns = ['aircraft', 'unique_pilots']
+        return result
+    
+    def top10_company_man(df):
+        result = (
+            df.groupby('pilot')['ac_airline_name']
+            .nunique()
+            .sort_values(ascending=False)
+            .head(5)
+            .reset_index()
+        )
+        result.columns = ['pilot', 'unique_airlines']
+        return result
+        
     
     # ===============================================================
     # DISPLAY BLOCK
     # ===============================================================
     
-    col1, col2, col3 = st.columns(3)
     
-    pilot_coverage_top10 = top10_pilot_coverage(pilot_cov)
+    row1_col1, row1_col2, row1_col3, row1_col4 = st.columns(4)
+    row2_col1, row2_col2, row2_col3, row2_col4 = st.columns(4)
     
-    with col3:
-        st.markdown("### Top 10 Pilots Globe Coverage")
-        st.dataframe(pilot_coverage_top10, use_container_width=True, height=387, hide_index=True        )
+    
+    with row1_col4:
+        st.markdown("### Butts in seats", help="Unique pilots per aircraft")
+        st.dataframe(top5_aircraft_unique_pilots(filtered_df), use_container_width=True, hide_index=True)
     
     trailblazer_table = compute_trailblazers(filtered_df)
     trailblazer_top10 = top10_trailblazers(trailblazer_table)
+        
+    with row1_col1:
+        st.markdown("### Trailblazers", help="Trailblazer is first on route. Followers are pilots flying the same route afterwards")
+        st.dataframe(trailblazer_top10, use_container_width=True, hide_index=True)
     
-    with col2:
-        st.markdown("### Top 10 Trailblazers")
-        st.dataframe(trailblazer_top10, use_container_width=True, height=387, hide_index=True)
+
+    with row1_col3:
+        st.markdown("### Company Man", help="Number of unique airlines flown by pilot")
+        st.dataframe(top10_company_man(filtered_df), use_container_width=True, hide_index=True)
+        
+    
+    with row1_col2:
+        single_ac_hours = single_aircraft_pilot_hours(filtered_df)
+        st.markdown("### Loyalists", help="Most hours in one aircraft on the network. Lost if you fly more than that one aircraft")
+        st.dataframe(single_ac_hours, use_container_width=True, hide_index=True)
 
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
     
-    with col1:
-        st.markdown("### Top 10 Airline Network Size")
-        st.dataframe(airline_network_top10, use_container_width=True, height=387, hide_index=True)
+    with row2_col1:
+        st.markdown("### Airline Network", help="Unique airports operated")
+        st.dataframe(airline_network_top10, use_container_width=True, hide_index=True)
+    
+    with row2_col3:
+        display_top_snake(filtered_df)
+    
+    with row2_col2:
+        display_busiest_airport(filtered_df)
+    
+    with row2_col4:
+        pass  # TBD
+    
+
+    
 
