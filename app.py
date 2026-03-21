@@ -774,53 +774,52 @@ with tab3:
         result.columns = ['pilot', 'unique_airlines']
         return result
         
-    def homecoming(df):
-        df = df.copy()
-        df['date_dep_form'] = pd.to_datetime(df['date_dep_form'])
-        df = df.sort_values(['aircraft', 'date_dep_form'])
-    
-        results = []
-    
-        for aircraft, group in df.groupby('aircraft'):
-            group = group.reset_index(drop=True)
-            base = group.iloc[0]['departure']
-    
-            # Split into journeys: each starts when it leaves base, ends when it returns
-            current_journey_nm = 0
-            current_journey_legs = 0
-            in_journey = False
-            journey_nms = []
-            
-            for _, row in group.iterrows():
-                if row['departure'] == base:
-                    in_journey = True
-                    current_journey_nm = 0
-                    current_journey_legs = 0
-            
-                if in_journey:
-                    current_journey_nm += row['distance_nm']
-                    current_journey_legs += 1
-            
-                if row['arrival'] == base and in_journey:
-                    journey_nms.append((current_journey_nm, current_journey_legs))
-                    in_journey = False
-                    current_journey_nm = 0
-                    current_journey_legs = 0
-            
-            if not journey_nms:
-                continue
-            
-            best_journey = max(journey_nms, key=lambda x: x[0])
-            results.append({
-                'aircraft': aircraft,
-                'base': base,
-                'legs': best_journey[1],
-                'journey_distance': round(best_journey[0])
-            })
-    
-        result_df = pd.DataFrame(results)
-        result_df = result_df.sort_values('longest_journey_nm', ascending=False).head(5)
-        return result_df.reset_index(drop=True)    
+        def homecoming(df):
+            df = df.copy()
+            df['date_dep_form'] = pd.to_datetime(df['date_dep_form'])
+            df = df.sort_values(['aircraft', 'date_dep_form'])
+        
+            results = []
+        
+            for aircraft, group in df.groupby('aircraft'):
+                group = group.reset_index(drop=True)
+                base = group.iloc[0]['departure']
+        
+                current_journey_nm = 0
+                current_journey_legs = 0
+                in_journey = False
+                journey_nms = []
+        
+                for _, row in group.iterrows():
+                    if row['departure'] == base:
+                        in_journey = True
+                        current_journey_nm = 0
+                        current_journey_legs = 0
+        
+                    if in_journey:
+                        current_journey_nm += row['distance_nm']
+                        current_journey_legs += 1
+        
+                    if row['arrival'] == base and in_journey:
+                        journey_nms.append((current_journey_nm, current_journey_legs))
+                        in_journey = False
+                        current_journey_nm = 0
+                        current_journey_legs = 0
+        
+                if not journey_nms:
+                    continue
+        
+                best_journey = max(journey_nms, key=lambda x: x[0])
+                results.append({
+                    'aircraft': aircraft,
+                    'base': base,
+                    'legs': best_journey[1],
+                    'longest_journey_nm': round(best_journey[0])
+                })
+        
+            result_df = pd.DataFrame(results)
+            result_df = result_df.sort_values('longest_journey_nm', ascending=False).head(5)
+            return result_df.reset_index(drop=True) 
     
     # ===============================================================
     # DISPLAY BLOCK
