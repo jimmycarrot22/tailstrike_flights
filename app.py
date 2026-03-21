@@ -774,6 +774,49 @@ with tab3:
         result.columns = ['pilot', 'unique_airlines']
         return result
         
+    def homecoming(df):
+        df = df.copy()
+        df['date_dep_form'] = pd.to_datetime(df['date_dep_form'])
+        df = df.sort_values(['aircraft', 'date_dep_form'])
+    
+        results = []
+    
+        for aircraft, group in df.groupby('aircraft'):
+            group = group.reset_index(drop=True)
+            base = group.iloc[0]['departure']
+    
+            # Split into journeys: each starts when it leaves base, ends when it returns
+            current_journey_nm = 0
+            in_journey = False
+            journey_nms = []
+    
+            for _, row in group.iterrows():
+                if row['departure'] == base:
+                    in_journey = True
+                    current_journey_nm = 0
+    
+                if in_journey:
+                    current_journey_nm += row['distance_nm']
+    
+                if row['arrival'] == base and in_journey:
+                    journey_nms.append(current_journey_nm)
+                    in_journey = False
+                    current_journey_nm = 0
+    
+            if not journey_nms:
+                continue
+    
+            best_journey_nm = max(journey_nms)
+            results.append({
+                'aircraft': aircraft,
+                'base': base,
+                'homecomings': len(journey_nms),
+                'longest_journey_nm': round(best_journey_nm)
+            })
+    
+        result_df = pd.DataFrame(results)
+        result_df = result_df.sort_values('longest_journey_nm', ascending=False).head(5)
+        return result_df.reset_index(drop=True)    
     
     # ===============================================================
     # DISPLAY BLOCK
@@ -809,18 +852,19 @@ with tab3:
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
     
-    with row2_col1:
+    with row2_col4:
         st.markdown("### Airline Network", help="Unique airports operated")
         st.dataframe(airline_network_top10, use_container_width=True, hide_index=True)
     
-    with row2_col3:
+    with row2_col2:
         display_top_snake(filtered_df)
     
-    with row2_col2:
+    with row2_col3:
         display_busiest_airport(filtered_df)
     
-    with row2_col4:
-        pass  # TBD
+    with row2_col1:        
+        st.markdown("### 🏠 Homecoming", help="Longest round trip from aircraft's home base")
+        st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
     
 
     
