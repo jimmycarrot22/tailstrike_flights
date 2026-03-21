@@ -787,31 +787,35 @@ with tab3:
     
             # Split into journeys: each starts when it leaves base, ends when it returns
             current_journey_nm = 0
+            current_journey_legs = 0
             in_journey = False
             journey_nms = []
-    
+            
             for _, row in group.iterrows():
                 if row['departure'] == base:
                     in_journey = True
                     current_journey_nm = 0
-    
+                    current_journey_legs = 0
+            
                 if in_journey:
                     current_journey_nm += row['distance_nm']
-    
+                    current_journey_legs += 1
+            
                 if row['arrival'] == base and in_journey:
-                    journey_nms.append(current_journey_nm)
+                    journey_nms.append((current_journey_nm, current_journey_legs))
                     in_journey = False
                     current_journey_nm = 0
-    
+                    current_journey_legs = 0
+            
             if not journey_nms:
                 continue
-    
-            best_journey_nm = max(journey_nms)
+            
+            best_journey = max(journey_nms, key=lambda x: x[0])
             results.append({
                 'aircraft': aircraft,
                 'base': base,
-                'homecomings': len(journey_nms),
-                'longest_journey_nm': round(best_journey_nm)
+                'legs': best_journey[1],
+                'journey_distance': round(best_journey[0])
             })
     
         result_df = pd.DataFrame(results)
@@ -863,7 +867,7 @@ with tab3:
         display_busiest_airport(filtered_df)
     
     with row2_col1:        
-        st.markdown("### 🏠 Homecoming", help="Longest round trip from aircraft's home base")
+        st.markdown("### Homecoming", help="Longest round trip from aircraft's home base")
         st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
     
 
