@@ -596,7 +596,7 @@ with tab3:
     
         route_df = pd.DataFrame([{'route': route}])
     
-        st.markdown("### The Snake", help="Most flights by non-consecutive pilots, without flying to previosly used airport")
+        st.markdown("### 🐍 The Snake", help="Snake ends when previous airport is visited, or same pilot flies 2 legs in a row.")
         st.dataframe(summary_df, use_container_width=True, hide_index=True)
         st.dataframe(route_df, use_container_width=True, hide_index=True)
         
@@ -749,7 +749,7 @@ with tab3:
             'window_end': pd.Timestamp(r['window_end']).strftime("%Y-%m-%d %H:%M")
         } for r in top5])
     
-        st.markdown("### Busy Skies", help="All movements in 24h period")
+        st.markdown("### 🛫 Busy Skies", help="All movements in 24h period")
         st.dataframe(busiest_df, use_container_width=True, hide_index=True)
     
     def top5_aircraft_unique_pilots(df):
@@ -831,32 +831,32 @@ with tab3:
     
     
     with row1_col4:
-        st.markdown("### Butts in seats", help="Unique pilots per aircraft")
+        st.markdown("### 💺 Butts in seats", help="Unique pilots per aircraft")
         st.dataframe(top5_aircraft_unique_pilots(filtered_df), use_container_width=True, hide_index=True)
     
     trailblazer_table = compute_trailblazers(filtered_df)
     trailblazer_top10 = top10_trailblazers(trailblazer_table)
         
     with row1_col1:
-        st.markdown("### Trailblazers", help="Trailblazer is first on route. Followers are pilots flying the same route afterwards")
+        st.markdown("### 🧭 Trailblazers", help="Trailblazer is first on route. Followers are pilots flying the same route afterwards")
         st.dataframe(trailblazer_top10, use_container_width=True, hide_index=True)
     
 
     with row1_col3:
-        st.markdown("### Company Man", help="Number of unique airlines flown by pilot")
+        st.markdown("### 🏢 Company Man", help="Number of unique airlines flown by pilot")
         st.dataframe(top10_company_man(filtered_df), use_container_width=True, hide_index=True)
         
     
     with row1_col2:
         single_ac_hours = single_aircraft_pilot_hours(filtered_df)
-        st.markdown("### Loyalists", help="Most hours in one aircraft on the network. Lost if you fly more than that one aircraft")
+        st.markdown("### 🔒 Loyalists", help="Most hours in one aircraft on the network. Lost if you fly more than that one aircraft")
         st.dataframe(single_ac_hours, use_container_width=True, hide_index=True)
 
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
     
     with row2_col4:
-        st.markdown("### Airline Network", help="Unique airports operated")
+        st.markdown("### 🌐 Airline Network", help="Unique airports operated")
         st.dataframe(airline_network_top10, use_container_width=True, hide_index=True)
     
     with row2_col2:
@@ -866,7 +866,7 @@ with tab3:
         display_busiest_airport(filtered_df)
     
     with row2_col1:        
-        st.markdown("### Homecoming", help="Longest round trip from aircraft's home base")
+        st.markdown("### 🏠 Homecoming", help="Longest round trip from aircraft's home base")
         st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
     
 
