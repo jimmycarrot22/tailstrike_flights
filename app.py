@@ -867,7 +867,10 @@ with tab3:
     
     with row2_col1:        
         st.markdown("### Homecoming", help="Longest round trip from aircraft's home base")
-        st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
+        try:
+            st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"Homecoming error: {e}")
     
 
     
