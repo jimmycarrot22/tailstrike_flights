@@ -1,296 +1,263 @@
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 import pydeck as pdk
 import matplotlib.colors as mcolors
 import altair as alt
-from shapely.geometry import Polygon, MultiPolygon
-from shapely.ops import unary_union
-from pyproj import Geod
+from pathlib import Path
+import datetime
 
 # =============================================================
 #                      DATA LOAD
 # =============================================================
 
+SILVER_DIR = Path("data/silver")
+
 @st.cache_data
-def load_csv(url):
-    return pd.read_csv(url)
+def load_data() -> pd.DataFrame:
+    df = pd.read_parquet("data/flights.parquet")
+    df["date_dep_form"] = pd.to_datetime(df["date_dep_form"], format="ISO8601").dt.tz_localize(None)
+    df["date_arr_form"] = pd.to_datetime(df["date_arr_form"], format="ISO8601").dt.tz_localize(None)
+    return df
 
-DF_URL = "https://raw.githubusercontent.com/jimmycarrot22/tailstrike_flights/main/data/tailstrike_flights.csv"
-df = load_csv(DF_URL)
-
-df["date_dep_form"] = pd.to_datetime(df["date_dep_form"], errors="coerce")
-df["date_arr_form"] = pd.to_datetime(df["date_arr_form"], errors="coerce")
-
-poly_df = df.copy()
-trail_df = df.copy()
-
+df = load_data()
 
 # =============================================================
 #                        PAGE LAYOUT
 # =============================================================
-st.set_page_config(layout="wide")
 
-# Optional: custom header
-st.markdown("<h2 style='font-size:24px; font-weight:700; margin-bottom:10px;'>Tailstrike Flights </h2>", unsafe_allow_html=True)
-tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Achievements"])
+st.set_page_config(layout="wide")
+st.markdown("<h2 style='font-size:24px; font-weight:700; margin-bottom:10px;'>Tailstrike Flights</h2>", unsafe_allow_html=True)
+tab1, tab2, tab3 = st.tabs(["Flight Map", "Global Stats", "Tables"])
+
 # =============================================================
 #                      FILTERING SECTION
 # =============================================================
 
 with tab1:
-    # --- Dropdown choices for existing filters ---
-    all_aircraft     = sorted(df["aircraft"].unique())
-    all_departures   = sorted(df["departure"].unique())
-    all_arrivals     = sorted(df["arrival"].unique())
-    all_airports_any = sorted(set(df["departure"].unique()) | set(df["arrival"].unique()))
-    
-    # --- Dropdown choices for aircraft-detail filters ---
-    all_ac_models = (sorted(df["ac_icao_type"].dropna().astype(str).unique())
-        if "ac_icao_type" in df.columns else [])
-    
+
+    all_aircraft     = sorted(df["aircraft"].dropna().unique())
+    all_departures   = sorted(df["departure"].dropna().unique())
+    all_arrivals     = sorted(df["arrival"].dropna().unique())
+    all_airports_any = sorted(set(df["departure"].dropna().unique()) | set(df["arrival"].dropna().unique()))
+
+    all_ac_models     = sorted(df["ac_icao_type"].dropna().astype(str).unique()) if "ac_icao_type" in df.columns else []
     all_ac_categories = sorted(df["ac_category"].dropna().unique()) if "ac_category" in df.columns else []
-    all_ac_airlines = sorted(df["ac_airline_name"].dropna().unique()) if "ac_airline_name" in df.columns else []
-    
-    all_ac_is_ga_raw = df["ac_is_ga"].dropna().unique() if "ac_is_ga" in df.columns else []
-    all_ac_is_ga = sorted({str(v) for v in all_ac_is_ga_raw})
-    
-    # --- Row 1: 5 core filters ---
-    # st.markdown("### Flight filter")
-    
+    all_ac_airlines   = sorted(df["ac_airline_name"].dropna().unique()) if "ac_airline_name" in df.columns else []
+    all_ac_is_ga      = sorted({str(v) for v in df["ac_is_ga"].dropna().unique()}) if "ac_is_ga" in df.columns else []
+
     col2, col3, col4, col5 = st.columns(4)
-    
     with col2:
         selected_aircraft = st.multiselect("", options=all_aircraft, placeholder="Aircraft")
-    
     with col3:
-        selected_departures = st.multiselect("", options=all_departures,  placeholder="Departure Airport")
-    
+        selected_departures = st.multiselect("", options=all_departures, placeholder="Departure Airport")
     with col4:
         selected_arrivals = st.multiselect("", options=all_arrivals, placeholder="Arrival Airport")
-    
     with col5:
         selected_any_airport = st.multiselect("", options=all_airports_any, placeholder="Departure or Arrival Airport")
-    
-    # --- Row 2: 4 aircraft-detail filters ---
+
     col6, col7, col8, col9 = st.columns(4)
-    
     with col6:
         selected_ac_models = st.multiselect("", options=all_ac_models, placeholder="Aircraft ICAO code")
-    
     with col7:
         selected_ac_categories = st.multiselect("", options=all_ac_categories, placeholder="Aircraft Category")
-    
     with col8:
         selected_ac_airlines = st.multiselect("", options=all_ac_airlines, placeholder="Airline")
-    
     with col9:
-        selected_ac_is_ga = st.multiselect("", options=all_ac_is_ga, placeholder="GA Aircraft?" )
-    
-    # --------- DATE RANGE SLIDER ---------
-    # st.markdown("### Date filter")
-    
-    min_date = df["date_dep_form"].min().date()
-    max_date = df["date_dep_form"].max().date()
-    
-    selected_date_range = st.slider("", min_value=min_date, max_value=max_date, value=(min_date, max_date), format="YYYY-MM-DD",)
-    
+        selected_ac_is_ga = st.multiselect("", options=all_ac_is_ga, placeholder="GA Aircraft?")
+
+    min_date = df["date_dep_form"].dropna().min().to_pydatetime().date()
+    max_date = df["date_dep_form"].dropna().max().to_pydatetime().date()
+
+    selected_date_range = st.slider(
+        "", min_value=min_date, max_value=max_date,
+        value=(min_date, max_date), format="YYYY-MM-DD"
+    )
     start_date, end_date = selected_date_range
-    
-    # --------- APPLY FILTERS ---------
+
     filtered_df = df.copy()
-    
-    # Core filters
+
     if selected_aircraft:
         filtered_df = filtered_df[filtered_df["tailnumber"].isin(selected_aircraft)]
-    
     if selected_departures:
         filtered_df = filtered_df[filtered_df["departure"].isin(selected_departures)]
-    
     if selected_arrivals:
         filtered_df = filtered_df[filtered_df["arrival"].isin(selected_arrivals)]
-    
     if selected_any_airport:
-        filtered_df = filtered_df[(filtered_df["departure"].isin(selected_any_airport)) | (filtered_df["arrival"].isin(selected_any_airport))]
-    
-    # Aircraft detail filters
-    if selected_ac_models and "ac_icao_type" in filtered_df.columns:
         filtered_df = filtered_df[
-            filtered_df["ac_icao_type"].astype(str).isin(selected_ac_models)]
-    
+            (filtered_df["departure"].isin(selected_any_airport)) |
+            (filtered_df["arrival"].isin(selected_any_airport))
+        ]
+    if selected_ac_models and "ac_icao_type" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["ac_icao_type"].astype(str).isin(selected_ac_models)]
     if selected_ac_categories and "ac_category" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["ac_category"].isin(selected_ac_categories)]
-    
     if selected_ac_airlines and "ac_airline_name" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["ac_airline_name"].isin(selected_ac_airlines)]
-    
     if selected_ac_is_ga and "ac_is_ga" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["ac_is_ga"].astype(str).isin(selected_ac_is_ga)]
-    
-    # Date filter (by departure time)
-    filtered_df = filtered_df[(filtered_df["date_dep_form"].dt.date >= start_date) & (filtered_df["date_dep_form"].dt.date <= end_date)]
-    
+
+    filtered_df = filtered_df[
+        (filtered_df["date_dep_form"].dt.date >= start_date) &
+        (filtered_df["date_dep_form"].dt.date <= end_date)
+    ]
+
     # =============================================================
-    #          BUILD flight_lines FOR MAP (USING filtered_df)
+    #                      FLIGHT LINES
     # =============================================================
+
     flight_lines = []
-    
     for _, flight in filtered_df.iterrows():
-    
         dep = (flight["dep_lat"], flight["dep_lon"])
         arr = (flight["arr_lat"], flight["arr_lon"])
-    
         if pd.isna(dep[0]) or pd.isna(dep[1]) or pd.isna(arr[0]) or pd.isna(arr[1]):
             continue
-    
         flight_lines.append({
-            "from_lat": dep[0],
-            "from_lon": dep[1],
-            "to_lat":   arr[0],
-            "to_lon":   arr[1],
-            "pilot": flight["pilot"],
-            "aircraft": flight["aircraft"],
-            "distance_nm": flight["distance_nm"],   # ← FIXED
-            "duration_min": flight["duration_min"],
-            "departure": flight["departure"],
-            "arrival": flight["arrival"],
+            "from_lat":    dep[0],
+            "from_lon":    dep[1],
+            "to_lat":      arr[0],
+            "to_lon":      arr[1],
+            "pilot":       flight["pilot"],
+            "aircraft":    flight["aircraft"],
+            "distance_nm": flight["distance_nm"],
+            "duration_min":flight["duration_min"],
+            "departure":   flight["departure"],
+            "arrival":     flight["arrival"],
         })
-    
+
     flight_lines = pd.DataFrame(flight_lines)
-    
+
     if flight_lines.empty:
         st.warning("No flights match the selected filters.")
         st.stop()
-    
-    
+
     # =============================================================
-    #                       TOOLTIP TEXT
+    #                       TOOLTIP
     # =============================================================
+
     def minutes_to_hhmm(minutes):
         h = int(minutes // 60)
         m = int(minutes % 60)
         return f"{h:02d}:{m:02d}"
-    
+
     flight_lines["duration_hhmm"] = flight_lines["duration_min"].apply(minutes_to_hhmm)
-    
     flight_lines["Hover"] = flight_lines.apply(
-        lambda r: (f"<b>Pilot:</b> {r['pilot']}<br>"
-                   f"<b>Aircraft:</b> {r['aircraft']}<br>"
-                   f"<b>Duration:</b> {r['duration_hhmm']}<br>"
-                   f"<b>Distance:</b> {r['distance_nm']} nm<br>"
-                   f"<b>From:</b> {r['departure']}<br>"
-                   f"<b>To:</b> {r['arrival']}"), axis=1)
-    
+        lambda r: (
+            f"<b>Pilot:</b> {r['pilot']}<br>"
+            f"<b>Aircraft:</b> {r['aircraft']}<br>"
+            f"<b>Duration:</b> {r['duration_hhmm']}<br>"
+            f"<b>Distance:</b> {r['distance_nm']} nm<br>"
+            f"<b>From:</b> {r['departure']}<br>"
+            f"<b>To:</b> {r['arrival']}"
+        ), axis=1
+    )
+
     # =============================================================
-    #                AIRPORT DOT DATAFRAME
+    #                     AIRPORT DOTS
     # =============================================================
+
     airport_points = []
-    
     for _, r in flight_lines.iterrows():
         airport_points.append({"lat": r["from_lat"], "lon": r["from_lon"], "ICAO": r["departure"]})
         airport_points.append({"lat": r["to_lat"],   "lon": r["to_lon"],   "ICAO": r["arrival"]})
-    
+
     airport_df = pd.DataFrame(airport_points).drop_duplicates(subset=["ICAO"])
     airport_df["Hover"] = airport_df["ICAO"].apply(lambda x: f"<b>Airport:</b> {x}")
-    
+
     # =============================================================
     #                      MAP CENTER
     # =============================================================
+
     mid_lat = flight_lines[["from_lat", "to_lat"]].values.mean()
     mid_lon = flight_lines[["from_lon", "to_lon"]].values.mean()
-    
     view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=2.4, pitch=0, bearing=0)
-    
+
     # =============================================================
-    #            READ COLORS FROM SESSION STATE
+    #                       COLORS
     # =============================================================
+
     default_line_hex = "#7896E1"
     default_dot_hex  = "#FFD700"
-    
     line_color_hex = st.session_state.get("line_color_hex", default_line_hex)
     dot_color_hex  = st.session_state.get("dot_color_hex", default_dot_hex)
-    
     line_color_rgb = [int(c * 255) for c in mcolors.to_rgb(line_color_hex)]
     dot_color_rgb  = [int(c * 255) for c in mcolors.to_rgb(dot_color_hex)]
-    
+
     # =============================================================
     #                        MAP LAYERS
     # =============================================================
-    basemap = pdk.Layer("TileLayer",
-                        data=None,
-                        tileset="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                        tile_size=256,)
-    
-    line_layer = pdk.Layer("GreatCircleLayer",
-                            data=flight_lines,
-                            get_source_position=["from_lon", "from_lat"],
-                            get_target_position=["to_lon", "to_lat"],
-                            get_source_color=line_color_rgb,
-                            get_target_color=line_color_rgb,
-                            great_circle=True,
-                            width_scale=1,
-                            width_min_pixels=2,
-                            pickable=True,
-                            wrapLongitude=True,)
-    
-    airport_layer = pdk.Layer("ScatterplotLayer",
-                                data=airport_df,
-                                get_position=["lon", "lat"],
-                                get_fill_color=dot_color_rgb,
-                                radius_min_pixels=4,
-                                radius_max_pixels=4,
-                                pickable=True,)
-    
-    # =============================================================
-    #                       MAP RENDER
-    # =============================================================
+
+    basemap = pdk.Layer(
+        "TileLayer", data=None,
+        tileset="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        tile_size=256,
+    )
+    line_layer = pdk.Layer(
+        "GreatCircleLayer",
+        data=flight_lines,
+        get_source_position=["from_lon", "from_lat"],
+        get_target_position=["to_lon", "to_lat"],
+        get_source_color=line_color_rgb,
+        get_target_color=line_color_rgb,
+        great_circle=True,
+        width_scale=1,
+        width_min_pixels=2,
+        pickable=True,
+        wrapLongitude=True,
+    )
+    airport_layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=airport_df,
+        get_position=["lon", "lat"],
+        get_fill_color=dot_color_rgb,
+        radius_min_pixels=4,
+        radius_max_pixels=4,
+        pickable=True,
+    )
+
     deck = pdk.Deck(
         layers=[basemap, line_layer, airport_layer],
         initial_view_state=view_state,
         map_style=None,
-        tooltip={"html": "{Hover}"},)
-    
+        tooltip={"html": "{Hover}"},
+    )
+
     st.pydeck_chart(deck, use_container_width=True)
-    
-    
+
     # =============================================================
-    #            FLIGHTS PER DAY CHART
+    #                   FLIGHTS PER DAY CHART
     # =============================================================
-    # st.markdown("### Flights Per Day")
-    
-    daily = (filtered_df
-            .groupby(filtered_df["date_dep_form"].dt.date)
-            .size()
-            .reset_index(name="Flights")
-            .sort_values("date_dep_form"))
-    
-    if daily.empty:
-        st.info("No flights available for the selected filters.")
-    else:
-        chart = (alt.Chart(daily)
-                .mark_bar(color="#7896E1")
-                .encode(
-                    x=alt.X("date_dep_form:T", title="Date", axis=alt.Axis(format="%b %d")),
-                    y=alt.Y("Flights:Q", title="Number of Flights"),
-                    tooltip=[alt.Tooltip("date_dep_form:T", title="Date", format="%Y-%m-%d"), alt.Tooltip("Flights:Q", title="Flights")]
-                ).properties(
-                    width="container",
-                    height=250,
-                    title="Flights Per Day"))
-    
+
+    daily = (
+        filtered_df
+        .groupby(filtered_df["date_dep_form"].dt.date)
+        .size()
+        .reset_index(name="Flights")
+        .sort_values("date_dep_form")
+    )
+
+    if not daily.empty:
+        chart = (
+            alt.Chart(daily)
+            .mark_bar(color="#7896E1")
+            .encode(
+                x=alt.X("date_dep_form:T", title="Date", axis=alt.Axis(format="%b %d")),
+                y=alt.Y("Flights:Q", title="Number of Flights"),
+                tooltip=[
+                    alt.Tooltip("date_dep_form:T", title="Date", format="%Y-%m-%d"),
+                    alt.Tooltip("Flights:Q", title="Flights")
+                ]
+            )
+            .properties(width="container", height=250, title="Flights Per Day")
+        )
         st.altair_chart(chart, use_container_width=True)
-    
+
     # =============================================================
-    #                MAP COLOR CONTROLS
+    #                     MAP COLOR CONTROLS
     # =============================================================
-    # st.markdown("### Map Colors")
-    
+
     colA, colB = st.columns(2)
-    
     with colA:
         st.color_picker("Flight Path Color", line_color_hex, key="line_color_hex")
-    
     with colB:
         st.color_picker("Airport Dot Color", dot_color_hex, key="dot_color_hex")
 
@@ -316,6 +283,9 @@ with tab2:
         "Cumulative Aircraft":    ("cumsum_ac", "Aircraft",     "#78A0E1"),
         }
     gs_stat = st.selectbox("", options=list(STAT_OPTIONS.keys()), key="gs_stat")
+    
+    
+    
     
     # --- Same filter dropdowns (reuse same option lists) ---
     gs_col1, gs_col2, gs_col3, gs_col4 = st.columns(4)
@@ -508,7 +478,7 @@ with tab2:
     )
     
     st.altair_chart(gs_chart, use_container_width=True)
-
+    
 with tab3:
 
     def longest_snake(df):
@@ -596,7 +566,7 @@ with tab3:
     
         route_df = pd.DataFrame([{'route': route}])
     
-        st.markdown("### 🐍 The Snake", help="Snake ends when previous airport is visited, or same pilot flies 2 legs in a row.")
+        st.markdown("### The Snake", help="Most flights by non-consecutive pilots, without flying to previosly used airport")
         st.dataframe(summary_df, use_container_width=True, hide_index=True)
         st.dataframe(route_df, use_container_width=True, hide_index=True)
         
@@ -749,7 +719,7 @@ with tab3:
             'window_end': pd.Timestamp(r['window_end']).strftime("%Y-%m-%d %H:%M")
         } for r in top5])
     
-        st.markdown("### 🛫 Busy Skies", help="All movements in 24h period")
+        st.markdown("### Busy Skies", help="All movements in 24h period")
         st.dataframe(busiest_df, use_container_width=True, hide_index=True)
     
     def top5_aircraft_unique_pilots(df):
@@ -774,52 +744,6 @@ with tab3:
         result.columns = ['pilot', 'unique_airlines']
         return result
         
-    def homecoming(df):
-        df = df.copy()
-        df['date_dep_form'] = pd.to_datetime(df['date_dep_form'])
-        df = df.sort_values(['aircraft', 'date_dep_form'])
-    
-        results = []
-    
-        for aircraft, group in df.groupby('aircraft'):
-            group = group.reset_index(drop=True)
-            base = group.iloc[0]['departure']
-    
-            current_journey_nm = 0
-            current_journey_legs = 0
-            in_journey = False
-            journey_nms = []
-    
-            for _, row in group.iterrows():
-                if row['departure'] == base:
-                    in_journey = True
-                    current_journey_nm = 0
-                    current_journey_legs = 0
-    
-                if in_journey:
-                    current_journey_nm += row['distance_nm']
-                    current_journey_legs += 1
-    
-                if row['arrival'] == base and in_journey:
-                    journey_nms.append((current_journey_nm, current_journey_legs))
-                    in_journey = False
-                    current_journey_nm = 0
-                    current_journey_legs = 0
-    
-            if not journey_nms:
-                continue
-    
-            best_journey = max(journey_nms, key=lambda x: x[0])
-            results.append({
-                'aircraft': aircraft,
-                'base': base,
-                'legs': best_journey[1],
-                'longest_journey_nm': round(best_journey[0])
-            })
-    
-        result_df = pd.DataFrame(results)
-        result_df = result_df.sort_values('longest_journey_nm', ascending=False).head(5)
-        return result_df.reset_index(drop=True) 
     
     # ===============================================================
     # DISPLAY BLOCK
@@ -831,44 +755,41 @@ with tab3:
     
     
     with row1_col4:
-        st.markdown("### 💺 Butts in seats", help="Unique pilots per aircraft")
+        st.markdown("### Butts in seats", help="Unique pilots per aircraft")
         st.dataframe(top5_aircraft_unique_pilots(filtered_df), use_container_width=True, hide_index=True)
     
     trailblazer_table = compute_trailblazers(filtered_df)
     trailblazer_top10 = top10_trailblazers(trailblazer_table)
         
     with row1_col1:
-        st.markdown("### 🧭 Trailblazers", help="Trailblazer is first on route. Followers are pilots flying the same route afterwards")
+        st.markdown("### Trailblazers", help="Trailblazer is first on route. Followers are pilots flying the same route afterwards")
         st.dataframe(trailblazer_top10, use_container_width=True, hide_index=True)
     
 
     with row1_col3:
-        st.markdown("### 🏢 Company Man", help="Number of unique airlines flown by pilot")
+        st.markdown("### Company Man", help="Number of unique airlines flown by pilot")
         st.dataframe(top10_company_man(filtered_df), use_container_width=True, hide_index=True)
         
     
     with row1_col2:
         single_ac_hours = single_aircraft_pilot_hours(filtered_df)
-        st.markdown("### 🔒 Loyalists", help="Most hours in one aircraft on the network. Lost if you fly more than that one aircraft")
+        st.markdown("### Loyalists", help="Most hours in one aircraft on the network. Lost if you fly more than that one aircraft")
         st.dataframe(single_ac_hours, use_container_width=True, hide_index=True)
 
     airline_network_frame = compute_airline_network_size(df)
     airline_network_top10 = top10_airline_network_size(airline_network_frame)
     
-    with row2_col4:
-        st.markdown("### 🌐 Airline Network", help="Unique airports operated")
+    with row2_col1:
+        st.markdown("### Airline Network", help="Unique airports operated")
         st.dataframe(airline_network_top10, use_container_width=True, hide_index=True)
     
-    with row2_col2:
+    with row2_col3:
         display_top_snake(filtered_df)
     
-    with row2_col3:
+    with row2_col2:
         display_busiest_airport(filtered_df)
     
-    with row2_col1:        
-        st.markdown("### 🏠 Homecoming", help="Longest round trip from aircraft's home base")
-        st.dataframe(homecoming(filtered_df), use_container_width=True, hide_index=True)
+    with row2_col4:
+        pass  # TBD
+        
     
-
-    
-
